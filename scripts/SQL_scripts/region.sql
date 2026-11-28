@@ -3,7 +3,9 @@
 -- Jerarquía geográfica: municipio -> provincia -> comunidad autónoma
 -- =====================================================================
 
-DROP TABLE IF EXISTS region;
+DROP TABLE IF EXISTS dim_ccaa;
+DROP TABLE IF EXISTS dim_provincia;
+DROP TABLE IF EXISTS dim_municipio;
 
 -- 1. Nivel Superior: CCAA (Aquí residen los flags fiscales)
 CREATE TABLE dim_ccaa (

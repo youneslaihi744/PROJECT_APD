@@ -45,7 +45,7 @@ CREATE TABLE fact_vivienda (
     CONSTRAINT pk_region PRIMARY KEY (cod_municipio, periodo),
     -- Declaración de claves ajenas
     CONSTRAINT fk_vivienda_region FOREIGN KEY (cod_municipio) 
-        REFERENCES region (cod_municipio),
+        REFERENCES dim_municipio (cod_municipio),
         
     CONSTRAINT fk_vivienda_fecha FOREIGN KEY (periodo) 
         REFERENCES fecha (periodo)
