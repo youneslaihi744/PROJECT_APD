@@ -1,4 +1,4 @@
-Codigo_INE;	Periodo;	Tasa_desempleo;	Tasa_actividad_economica;	Renta_medio_anual_por_hogar;	Tasa_empleo
+cod_municipio;	Periodo;	Tasa_desempleo;	Tasa_actividad_economica;	Renta_medio_anual_por_hogar;	Tasa_empleo
 03014;	2010;	23,16;	57,18;	;	43,94
 03014;	2011;	23,19;	56,76;	27260;	43,6
 03014;	2012;	27,76;	56,98;	25139;	41,16
