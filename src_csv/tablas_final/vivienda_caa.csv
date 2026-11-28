@@ -1,4 +1,4 @@
-Codigo_INE;Periodo;Indice_IPV;Salario_medio;viviendas_terminadas;Saldo_total;ratio_viviendas_saldo
+Municipio;Periodo;Indice_IPV;Salario_medio;viviendas_terminadas;Saldo_total;ratio_viviendas_saldo
 1;2010;71,504;20964,36;36619;;
 1;2011;67,244;21350,98;17584;;
 1;2012;59,313;20891,63;13381;;
