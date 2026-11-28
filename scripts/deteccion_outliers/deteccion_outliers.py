@@ -6,6 +6,7 @@ Uso basico:
 
 Opciones utiles:
     --columnas a b c      columnas para los modelos multivariantes (por defecto: precio/alquiler)
+    --dimension COLUMNA   columna que identifica cada fila (por defecto cod_municipio)
     --sin-grupo           no separar por año (mezcla todos los periodos)
     --contaminacion 0.05  proporcion esperada de outliers en IF y LOF (por defecto 0.05; o "auto")
     --output ruta.csv     CSV de salida (por defecto <input>_outliers.csv)
@@ -59,11 +60,11 @@ COLUMNAS_MODELO_DEFECTO = [
 ]
 
 
-def leer_csv(ruta, sep):
+def leer_csv(ruta, sep, ids):
     df = pd.read_csv(ruta, sep=sep, encoding="utf-8")
     # Pentaho a veces escribe decimales con coma ("5,42"): convertir texto numerico a float
     for c in df.columns:
-        if c in COLUMNAS_ID or pd.api.types.is_numeric_dtype(df[c]):
+        if c in ids or pd.api.types.is_numeric_dtype(df[c]):
             continue
         convertida = pd.to_numeric(df[c].astype(str).str.strip().str.replace(",", ".", regex=False),
                                    errors="coerce")
@@ -74,7 +75,7 @@ def leer_csv(ruta, sep):
 
 
 # ----------------------------------------------------------------------------- IQR
-def iqr_outliers(df, columnas, grupo, figdir):
+def iqr_outliers(df, columnas, grupo, dimension, figdir):
     """Marca outliers univariantes por columna (dentro de cada grupo) y dibuja boxplots."""
     box_dir = figdir / "boxplots"
     box_dir.mkdir(parents=True, exist_ok=True)
@@ -95,7 +96,7 @@ def iqr_outliers(df, columnas, grupo, figdir):
             flags.loc[sub.index[fuera], c] = True
             for i in sub.index[fuera]:
                 filas_resumen.append({
-                    "grupo": g, "Municipio": df.at[i, "Municipio"] if "Municipio" in df else i,
+                    "grupo": g, dimension: df.at[i, dimension],
                     "columna": c, "valor": df.at[i, c], "lim_inf": lo, "lim_sup": hi,
                     "tipo": "alto" if df.at[i, c] > hi else "bajo",
                 })
@@ -134,7 +135,10 @@ def elegir_eps(X, min_samples, ruta_png, titulo):
     n = len(kdist)
     p1, p2 = np.array([0, kdist[0]]), np.array([n - 1, kdist[-1]])
     pts = np.column_stack([np.arange(n), kdist])
-    d = np.abs(np.cross(p2 - p1, pts - p1)) / (np.linalg.norm(p2 - p1) + 1e-12)
+    # distancia punto-recta = |producto vectorial 2D| / |p2-p1|; el producto vectorial 2D es el
+    # determinante a mano (np.cross con vectores 2D esta obsoleto en NumPy 2 y da error)
+    u, v = p2 - p1, pts - p1
+    d = np.abs(u[0] * v[:, 1] - u[1] * v[:, 0]) / (np.linalg.norm(u) + 1e-12)
     eps = float(kdist[int(np.argmax(d))]) if kdist[-1] > kdist[0] else float(kdist[-1]) or 0.5
 
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -204,6 +208,8 @@ def main():
     ap.add_argument("--figdir")
     ap.add_argument("--sep", default=";")
     ap.add_argument("--columnas", nargs="+", help="columnas para IF/LOF/DBSCAN")
+    ap.add_argument("--dimension", default="cod_municipio",
+                    help="columna que identifica cada fila (por defecto cod_municipio)")
     ap.add_argument("--grupo", default="Periodo", help="columna por la que separar (por defecto Periodo)")
     ap.add_argument("--sin-grupo", action="store_true", help="no separar por grupo")
     ap.add_argument("--contaminacion", default="0.05",
@@ -216,10 +222,14 @@ def main():
     figdir.mkdir(parents=True, exist_ok=True)
     contaminacion = args.contaminacion if args.contaminacion == "auto" else float(args.contaminacion)
 
-    df = leer_csv(entrada, args.sep)
+    # la dimension y el grupo identifican la fila: nunca se analizan como variables
+    ids = COLUMNAS_ID | {args.dimension, args.grupo}
+    df = leer_csv(entrada, args.sep, ids)
+    if args.dimension not in df.columns:
+        sys.exit(f"La columna dimension '{args.dimension}' no existe.\nColumnas: {list(df.columns)}")
     grupo = None if args.sin_grupo or args.grupo not in df.columns else args.grupo
 
-    numericas = [c for c in df.columns if c not in COLUMNAS_ID and pd.api.types.is_numeric_dtype(df[c])]
+    numericas = [c for c in df.columns if c not in ids and pd.api.types.is_numeric_dtype(df[c])]
     columnas_modelo = args.columnas or [c for c in COLUMNAS_MODELO_DEFECTO if c in df.columns]
     faltan = [c for c in columnas_modelo if c not in numericas]
     if faltan:
@@ -227,14 +237,14 @@ def main():
 
     print(f"Filas: {len(df)}  | grupo: {grupo or 'ninguno'}")
     print(f"IQR sobre {len(numericas)} columnas numericas")
-    resumen_iqr = iqr_outliers(df, numericas, grupo, figdir)
+    resumen_iqr = iqr_outliers(df, numericas, grupo, args.dimension, figdir)
 
     print(f"Multivariante sobre: {columnas_modelo}")
     multivariante(df, columnas_modelo, grupo, contaminacion, figdir)
 
     df.to_csv(salida, sep=args.sep, index=False, encoding="utf-8")
     resumen_iqr.to_csv(figdir / "resumen_outliers_iqr.csv", sep=args.sep, index=False, encoding="utf-8")
-    id_cols = [c for c in ["Municipio", grupo] if c and c in df.columns]
+    id_cols = [c for c in [args.dimension, grupo] if c and c in df.columns]
     marcados = df[df["n_metodos_outlier"].fillna(0) > 0]
     (marcados[id_cols + columnas_modelo + ["if_score", "lof_score", "dbscan_cluster", "n_metodos_outlier"]]
         .sort_values(["n_metodos_outlier", "if_score"], ascending=False)

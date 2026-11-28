@@ -35,6 +35,7 @@ El CSV de entrada debe usar `;` como separador (se puede cambiar con `--sep`). A
 | `--output RUTA` | no | `<input>_outliers.csv` (junto al de entrada) | CSV de salida con las columnas nuevas. |
 | `--figdir CARPETA` | no | `outliers_graficos` (junto al CSV de salida) | Carpeta donde se guardan los gráficos y los resúmenes. |
 | `--columnas COL1 COL2 ...` | no | ver abajo | Columnas para Isolation Forest, LOF y DBSCAN. |
+| `--dimension COLUMNA` | no | `cod_municipio` | Columna que identifica cada fila (municipio, provincia, código…). Aparece en los resúmenes y nunca se analiza como variable. |
 | `--grupo COLUMNA` | no | `Periodo` | Columna con la que se separan los datos: cada grupo (cada año) se analiza por separado. |
 | `--sin-grupo` | no | desactivado | Analiza todas las filas juntas, sin separar por grupo. |
 | `--contaminacion VALOR` | no | `0.05` | Proporción de filas que Isolation Forest y LOF marcan como outlier en cada grupo (0.05 = 5 %). También acepta `auto`. |
@@ -70,6 +71,19 @@ Cómo elegirlas:
 - Elige columnas relacionadas con la pregunta que quieres responder (p. ej. precio y alquiler). Una columna sin relación cambia el resultado: Isolation Forest gasta cortes en ella, y en LOF y DBSCAN entra en el cálculo de todas las distancias.
 - Evita columnas redundantes: `ratio_precio_alquiler` es la inversa de `rentabilidad_bruta_alquiler`, así que meter las dos cuenta lo mismo dos veces.
 - Los modelos solo usan las filas que tienen **todas** las columnas elegidas sin valores vacíos. Una columna que solo existe algunos años (p. ej. `pct_viviendas_vacias`) deja fuera muchas filas.
+
+### `--dimension`
+
+Indica qué columna identifica cada fila. Por defecto `cod_municipio`. Se usa para:
+
+- Nombrar cada fila en `resumen_outliers_iqr.csv`, `resumen_multivariante.csv` y en el top 10 que se muestra por consola (la columna de esos ficheros toma el nombre de la dimensión).
+- Excluirla del análisis: nunca se trata como variable, aunque sea numérica (p. ej. `--dimension cod_municipio`).
+
+```
+python scripts\deteccion_outliers\deteccion_outliers.py --input datos.csv --dimension cod_municipio
+```
+
+Si la columna no existe, el script se detiene y muestra las columnas disponibles.
 
 ### `--grupo` / `--sin-grupo`
 
@@ -116,7 +130,7 @@ Una fila por cada valor fuera de los límites IQR (un municipio puede aparecer v
 | Columna | Significado |
 |---|---|
 | `grupo` | Año (o `todos` con `--sin-grupo`). |
-| `Municipio` | Municipio. |
+| *(dimensión)* | Valor de la columna `--dimension` (por defecto `Municipio`). |
 | `columna` | Columna en la que el valor es atípico. |
 | `valor` | Valor del municipio en esa columna. |
 | `lim_inf` | Q1 − 1.5·IQR de esa columna en ese año. |
@@ -129,7 +143,7 @@ Solo las filas con `n_metodos_outlier` ≥ 1, ordenadas de más a menos fiable (
 
 | Columna | Significado |
 |---|---|
-| `Municipio`, `Periodo` | Identificación de la fila. |
+| *(dimensión)*, `Periodo` | Identificación de la fila: la columna `--dimension` y la de `--grupo`. |
 | *(columnas de `--columnas`)* | Valores originales usados por los modelos, para ver por qué es raro. |
 | `if_score`, `lof_score`, `dbscan_cluster`, `n_metodos_outlier` | Igual que en el CSV principal. |
 
@@ -147,4 +161,4 @@ Solo las filas con `n_metodos_outlier` ≥ 1, ordenadas de más a menos fiable (
 - Antes de los modelos multivariantes las columnas se escalan con `RobustScaler` (mediana e IQR) para que todas pesen parecido en las distancias.
 - Isolation Forest: 300 árboles, `random_state=42` (resultados reproducibles).
 - LOF: `n_neighbors = min(20, n − 1)`.
-- DBSCAN: `min_samples = max(2 × nº de columnas, 4)`; `eps` = codo de la curva de distancias al vecino `min_samples`-ésimo.
+- DBSCAN: `min_samples = max(2 × nº de columnas, 4)`; `eps` = codo de la curva de distancias al vecino `min_samples`-ésimo (el punto de la curva más alejado de la recta que une sus extremos; la distancia se calcula con el determinante 2D a mano, compatible con NumPy 1.x y 2.x).
